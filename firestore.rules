@@ -1,0 +1,382 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+
+    // 기본적으로 모든 읽기와 쓰기를 막는다.
+    // By default, all permissions should be locked.
+    match /{document=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+    // 테스트를 위한 도큐먼트. 실제는 사용되지 않음.
+    // `readonlytest` is only for security rule unit testing.
+    match /readonlytest/{docId} {
+      allow read: if true;
+      allow write: if (request.auth.uid == docId);
+    }
+    // 테스트를 위한 도큐먼트. 실제로는 사용되지 않음.
+    // `publictest` is only for security rule unit testing.
+    match /publictest/{docId} {
+      allow read: if (resource.data.visibility == "public" || ( resource.data.uid == request.auth.uid ));
+      allow write: if false;
+    }
+    // 사용자
+    // Security Rules for Users Colection
+    match /users/{uid} {
+      // 로그인을 했으면, 도큐먼트 생성 가능
+      // Create when user logged in and it's my document.
+      allow create: if login() && request.auth.uid == uid;
+
+      // 자신의 도큐먼트이면 읽기 가능.
+      // Read if it's my document
+      allow read: if request.auth.uid == uid;
+
+      // `isAdmin` 속성은 빼고 수정 가능.
+      // 관리자인 경우에도, request data 로 직접 isAmdin 속성을 수정 할 수 없다.
+      // `isAdmin` 은 관리자 권한을 가지는 것으로 사용자가 직접 변경해서는 안된다.
+      // Update if it's my document.
+      // Nobody can update `isAdmin` property. When it is set to true, then the user becomes admin.
+      allow update: if request.auth.uid == uid && notUpdating('isAdmin');
+
+      // 삭제는 불가능
+      // No delete.
+      allow delete: if false;
+
+
+      // Push notification tokens.
+      // Push tokens are saved unser `/users/{uid}/meta/tokens` document.
+      match /meta/tokens {
+        allow read: if true;
+        allow write: if request.auth.uid == uid;
+      }
+
+
+      // Public settings of a user.
+      // The document of `/users/{uid}/meta/public` is open for reading.
+      match /meta/public {
+        allow read: if true;
+        allow write: if request.auth.uid == uid;
+      }
+    }
+
+    // Category rules
+    //
+    // Read: by anyone.
+    // Create, Update, Delete: admin only.
+    // Category document id must be same of the `id` field.
+    // Admin cannot update `id`.
+    match /categories/{category} {
+      allow read: if true;
+      allow create: if admin() && category == req('id') && hasAll(['id', 'title', 'description']);
+      allow delete: if admin();
+      allow update: if admin() && notUpdating('id');
+    }
+
+
+
+    // 글
+    match /posts/{postId} {
+      // 아무나 글을 읽거나 목록 할 수 있음.
+      allow read: if true;
+
+
+      // Create a post
+      //
+      //
+      // input data
+      // uid: my uid. the user must login.
+      // category: category id. And the category must exist.
+      // createdAt: This is FieldValue.serverTimestamp(). required.
+      // updatedAt: This is FieldValue.serverTimestamp(). required.
+      // All other fields are optional. You can input title, content, and more.
+      allow create: if login()
+        && toBeMyDocument()
+        && categoryExist()
+        && hasAll(['uid', 'category', 'createdAt', 'updatedAt']);
+
+
+
+      // 수정
+      //
+      // 필수 입력: 없음??
+      
+      // 
+      // 
+      // - 수정은 자기 글만 가능
+      // - uid 변경 불가
+      // - 카테고리가 존재해야 함
+      //
+      // - 다른 사람이 내 글을 수정하는 경우, 오직 'like' 와 'dislke' 만 수정 가능하다. 
+      // - 자신 뿐만아니라 타인이 vote 할 수 있다.
+
+      // Update a post
+      //
+      // Condition 1. A user can update his post.
+      // Input params of [Condition 1]
+      // category: **required**. The category must be exit and may be changed.
+      // uid: **optinonal** The user uid. This value must be same with the value that is already saved in the document. Meaning it cannot be changed.
+      // updatedAt: **required** This is FieldValue.serverTimestamp(), and must have bigger value from the value in the document.
+      // All other fields are optinal.
+
+      allow update: if
+        myDocument()
+          && notUpdating('uid')
+          && notUpdating('likes')
+          && notUpdating('dislikes')
+          && req('updatedAt') > res('updatedAt')
+          && categoryExist()
+      ;
+
+      // 삭제는 자기 글만 가능
+      //
+      // 필수 입력: 없음.
+      allow delete: if myDocument();
+
+
+      // Vote on post
+      // @see README.md
+      match /votes/{uid} {
+        allow read: if true;
+        allow write: if
+          request.auth.uid == uid
+          // && debug(req('choice'))
+          // && debug(res('choice'))
+          // && debug( request.auth.uid )
+          // && debug(uid)
+          // && debug(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
+          // If user voted for the first time, then choice can be 'like' or 'dislike'.
+          // If user voted again, then choice can be one of empty string(''), 'like', 'dislike'.
+          && 
+          (
+            // first time vote,
+            (
+              !exists(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
+              &&
+              (req('choice') == 'like' || req('choice') == 'dislike')
+            )
+            // If vote has done before, then choice must be difference.
+            ||
+            (
+              exists(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
+              &&
+              ((req('choice')) != (res('choice')))
+              &&
+              (
+                req('choice') == 'like' || req('choice') == 'dislike' || req('choice') == ''
+              )
+            )
+          )
+        ;
+      }
+
+
+      // 코멘트
+      // - 각 글 도큐먼트 하위에 기록
+      match /comments/{commentId} {
+        allow read: if true;
+
+        // 코멘트 생성 권한
+        // - 입력값: uid, content, depth, order. `post id` 는 필요 없음.
+        // Required: input params.
+        // uid
+        // depth
+        // order
+        // createdAt
+        // updatedAt
+        // All others are options. Even comment content is optional.
+        allow create: if login() && toBeMyDocument() // 내 코멘트이어야 하고
+          && exists(/databases/$(database)/documents/posts/$(postId)) // 글이 존재해야 하고
+          && request.resource.data.order is string // order 가 문자열로 들어와야 하고,
+          && request.resource.data.order.size() == 50 // order 가 49 글자 길이어야 한다.
+          && request.resource.data.depth is number // depth 가 number 로 들어와야 하고,
+          && request.resource.data.depth >= 0 && request.resource.data.depth < 12 // from 0 to 11.
+          && hasAll(['uid', 'createdAt', 'updatedAt', 'order', 'depth'])
+          ;
+
+        // 코멘트 수정 권한
+        // - 내 코멘트이고,
+        // - `uid`, `order` 를 업데이트 하지 않아야 한다.
+        // - 자신 뿐만아니라 타인이 vote 할 수 있다.
+        allow update: if
+          (
+            login()
+            && toBeMyDocument() 
+            && notUpdating('uid')
+            && notUpdating('order')
+            && notUpdating('likes')
+            && notUpdating('dislikes')
+          )
+          ;
+
+        // 코멘트 삭제 권한
+        // - 내 코멘트이면 삭제 가능
+        allow delete: if login() && myDocument();
+
+
+        // Vote on comment
+        // @see README.md
+        match /votes/{uid} {
+          allow read: if true;
+          allow write: if
+            request.auth.uid == uid
+            // && debug(req('choice'))
+            // && debug(res('choice'))
+            // && debug( request.auth.uid )
+            // && debug(uid)
+            // && debug(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
+            // If user voted for the first time, then choice can be 'like' or 'dislike'.
+            // If user voted again, then choice can be one of empty string(''), 'like', 'dislike'.
+            && 
+            (
+              // first time vote,
+              (
+                !exists(/databases/$(database)/documents/posts/$(postId)/comments/$(commentId)/votes/$(uid))
+                &&
+                (req('choice') == 'like' || req('choice') == 'dislike')
+              )
+              // If vote has done before, then choice must be difference.
+              ||
+              (
+                exists(/databases/$(database)/documents/posts/$(postId)/comments/$(commentId)/votes/$(uid))
+                &&
+                ((req('choice')) != (res('choice')))
+                &&
+                (
+                  req('choice') == 'like' || req('choice') == 'dislike' || req('choice') == ''
+                )
+              )
+            )
+          ;
+        }
+      } // comments
+    }
+
+
+
+    // // 추천/비추천
+    // match /likes/{like} {
+    //   // 읽기는 로그인만 하면 된다.
+    //   // 타인의 likes 정보를 읽을 수 있다. 별 중요한 정보가 아니다.
+    //   // 굳이, 존재하지 않으면, 통과 && Documennt 가 존재하면 내 글인지 확인 할 필요가 없다.
+    //   allow read: if login();
+    //   allow create: if login() && toBeMyDocument() && request.resource.data.keys().hasOnly(['uid', 'id', 'vote']);
+    //   allow update: if login() && myDocument() && notUpdating('uid') && request.resource.data.keys().hasOnly(['uid', 'id', 'vote']);
+    //   allow delete: if login() && myDocument();
+    // }
+    
+
+    // 설정. 모든 사람이 읽을 수 있지만, 관리자만 쓰기 가능.
+    match /settings/{document=**} {
+      allow read: if true;
+      allow write: if admin();
+    }
+
+    match /translations/{document=**}  {
+      allow read: if true;
+      allow write: if admin();
+    }
+
+
+
+
+    // 로그인을 했는지 검사
+    //
+    // Firebaes 의 Anonymous 로그인은 로그인하지 않은 것으로 간주.
+    function login() {
+      return request.auth.uid != null
+        && ( request.auth.token.firebase.sign_in_provider != 'anonymous' );
+    }
+
+    // Returns the data of the `field` is in the resource.request.data
+    function req(field) {
+      return request.resource.data[field];
+    }
+    // Returns the data of the `field` is in the resource.data
+    function res(field) {
+      return resource.data[field];
+    }
+
+    // 필드를 변경하지 못하게 검사
+    //
+    // request data 에 field 가 없거나, 있다면, 저장되어져 있는 값과 동일해야 한다.
+    // 즉, 값을 변경을 하지 못하도록 하는 체크하는 함수이다.
+    function notUpdating(field) {
+      return !(field in request.resource.data) || resource.data[field] == request.resource.data[field];
+    }
+
+    // request data 에 특정 field 가 있는지 검사한다.
+    // function requestHas(field) {
+    //   return field in request.resource.data;
+    // }
+
+    // 사용자의 uid 와 문서에 저장되어져 있는 uid 가 일치하면 본인의 데이터
+    function myDocument() {
+      return resource.data.uid == request.auth.uid;
+    }
+
+    // 저장할 데이터에 uid 값이 있으면 나의 uid 와 일치하는지 검사.
+    // 사용자의 uid 와 저장할 데이터의 uid 가 일치하면, 나의 데이터로 저장 될 것이다.
+    function toBeMyDocument() {
+      return request.resource.data.uid == request.auth.uid;
+    }
+
+    // 관리자 인지 확인.
+    //
+    // 사용자 도큐먼트에 `isAdmin` 속성이 true 인 경우, 관리자로 간주한다.
+    function admin() {
+      return login() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    // 카테고리가 존재하는지 검사한다.
+    // - `category` 에 category id 값이 들어와야 한다.
+    function categoryExist() {
+      return exists(/databases/$(database)/documents/categories/$(request.resource.data.category));
+    }
+
+    // 특정 값만 업데이트하는지 확인
+    //
+    // 예) onlyUpdating(['like', 'dislike']);
+    // function onlyUpdating(fields) {
+    //   return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    // }
+
+
+
+    // 특정 필드에 대한 증감 값 확인
+    //
+    // `field` 가 숫자인지 확인
+    // `field` 가 업데이트되지 않거나 또는 최대 1 증가, 최소 1 감소하는지 확인.
+    //
+    // TODO: like/dislike 는 동시에 1이 증가하거나 동시에 1이 감소 할 수 없다. 하지만 큰 문제가 아니기 때문에 차 후 업데이트한다.
+    // function updatingByOne(field) {
+    //   return request.resource.data[field] is int
+    //     &&
+    //     ( 
+    //       request.resource.data[field] == resource.data[field] // 값이 변하지 않거나
+    //       ||
+    //       request.resource.data[field] == resource.data[field] + 1 // 값이  1 증가 하거나
+    //       ||
+    //       request.resource.data[field] == resource.data[field] - 1 // 값이  1 감소 하거나
+    //     );
+    // }
+
+    // function mustBeZero(field) {
+    //   return request.resource.data[field] is int && request.resource.data[field] == 0;
+    // }
+
+    // 게시글이 존재하는지 검사한다.
+    // 현재 액세스하려는 post document 가 실제로 존재하는 것인지 검사
+    // function postExist() {
+    //   return exists(/databases/$(database)/documents/posts/$(request.resource.data.postId));
+    // }
+
+    // Check if all the fields are exist in request.
+    //
+    // If request does not contain any of the fields, it fails.
+    function hasAll(fields) {
+      return (request.resource.data.keys().hasAll(fields));
+    }
+  }
+
+
+}
