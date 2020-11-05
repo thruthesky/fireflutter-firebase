@@ -16,11 +16,11 @@ const client = algoliasearch(ALGOLIA_ID, ALGOLIA_ADMIN_KEY);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-function _decrease(n) {
-  n--;
-  if (n < 0) return 0;
-  else return n;
-}
+// function _decrease(n) {
+//   n--;
+//   if (n < 0) return 0;
+//   else return n;
+// }
 async function doVotes(change) {
   const parentRef = change.after.ref.parent.parent;
   const snapshot = await parentRef.get();
@@ -94,31 +94,31 @@ async function doVotes(change) {
     } else {
       /// 이전 추천과 현재 추천이 서로 다른 경우,
       /// 예: 이전에 like 했는데 지금은 dislike 하는 경우, 또는 그 반대
-      let likes;
-      let dislikes;
+      // let likes;
+      // let dislikes;
       if (afterVoteData.choice === "like") {
         // likes = postData.likes + 1;
         /// If the previous vote was empty string(''), it means, there was no vote.
         /// So, no need to decrease counterpart.
-        var data = {
+        const voteData = {
           likes: admin.firestore.FieldValue.increment(1)
         };
         if (beforeVoteData.choice !== "")
-          data["dislikes"] = admin.firestore.FieldValue.increment(-1);
-        await parentRef.set(data, { merge: true });
+          voteData["dislikes"] = admin.firestore.FieldValue.increment(-1);
+        await parentRef.set(voteData, { merge: true });
       } else if (afterVoteData.choice === "dislike") {
         // dislikes = postData.dislikes + 1;
         /// If the previous vote was empty string(''), it means, there was no vote.
         /// So, no need to decrease counterpart.
-        if (beforeVoteData.choice === "") likes = postData.likes;
-        else likes = _decrease(postData.likes);
+        // if (beforeVoteData.choice === "") likes = postData.likes;
+        // else likes = _decrease(postData.likes);
 
-        var data = {
+        const voteData = {
           dislikes: admin.firestore.FieldValue.increment(1)
         };
         if (beforeVoteData.choice !== "")
-          data["likes"] = admin.firestore.FieldValue.increment(-1);
-        await parentRef.set(data, { merge: true });
+          voteData["likes"] = admin.firestore.FieldValue.increment(-1);
+        await parentRef.set(voteData, { merge: true });
       } else {
         console.error("Choice mus tbe like or dislike");
         return;
