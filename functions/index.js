@@ -2,6 +2,7 @@
 
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const settings = require("../settings");
 if (!admin.apps.length) {
   admin.initializeApp();
 }
@@ -9,10 +10,10 @@ const firestore = admin.firestore();
 exports.firestore = firestore;
 
 const algoliasearch = require("algoliasearch");
-const ALGOLIA_ID = "2P90MM35DW";
-const ALGOLIA_ADMIN_KEY = "e511858133eed17717b2204a564c32c7";
-const ALGOLIA_INDEX_NAME = "DEV_FORUM";
-const client = algoliasearch(ALGOLIA_ID, ALGOLIA_ADMIN_KEY);
+// const ALGOLIA_ID = "2P90MM35DW";
+// const ALGOLIA_ADMIN_KEY = "e511858133eed17717b2204a564c32c7";
+// const ALGOLIA_INDEX_NAME = "DEV_FORUM";
+const client = algoliasearch(settings.algolia.appId, settings.algolia.adminKey);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -151,7 +152,7 @@ exports.onPostWrite = functions.firestore
     note.objectID = change.after.ref.path;
 
     // 색인
-    const index = client.initIndex(ALGOLIA_INDEX_NAME);
+    const index = client.initIndex(settings.algolia.indexName);
     return index.saveObject(note);
   });
 
@@ -165,6 +166,6 @@ exports.onCommentWrite = functions.firestore
     note.objectID = change.after.ref.path;
 
     // 색인
-    const index = client.initIndex(ALGOLIA_INDEX_NAME);
+    const index = client.initIndex(settings.algolia.indexName);
     return index.saveObject(note);
   });
