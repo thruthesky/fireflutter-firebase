@@ -2,7 +2,6 @@
 
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const settings = require("../settings");
 if (!admin.apps.length) {
   admin.initializeApp();
 }
@@ -10,10 +9,15 @@ const firestore = admin.firestore();
 exports.firestore = firestore;
 
 const algoliasearch = require("algoliasearch");
-// const ALGOLIA_ID = "2P90MM35DW";
-// const ALGOLIA_ADMIN_KEY = "e511858133eed17717b2204a564c32c7";
-// const ALGOLIA_INDEX_NAME = "DEV_FORUM";
-const client = algoliasearch(settings.algolia.appId, settings.algolia.adminKey);
+
+const settings = require("./settings");
+let algoliaClient;
+if (settings.algolia && settings.algolia.appId) {
+  algoliaClient = algoliasearch(
+    settings.algolia.appId,
+    settings.algolia.adminKey
+  );
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -145,27 +149,31 @@ exports.voteOnComment = functions.firestore
 // 글 생성, 업데이트시 색인.
 exports.onPostWrite = functions.firestore
   .document("/posts/{postId}")
-  .onWrite((change, context) => {
-    const note = change.after.data();
+  .onWrite(async (change, context) => {
+    if (settings.algolia.indexName) {
+      const note = change.after.data();
 
-    // 글 경로 저장
-    note.objectID = change.after.ref.path;
+      // 글 경로 저장
+      note.objectID = change.after.ref.path;
 
-    // 색인
-    const index = client.initIndex(settings.algolia.indexName);
-    return index.saveObject(note);
+      // 색인
+      const index = algoliaClient.initIndex(settings.algolia.indexName);
+      await index.saveObject(note);
+    }
   });
 
 // 코멘트 생성, 업데이트시 식앤
 exports.onCommentWrite = functions.firestore
   .document("/posts/{postId}/comments/{commentId}")
-  .onWrite((change, context) => {
-    const note = change.after.data();
+  .onWrite(async (change, context) => {
+    if (settings.algolia.indexName) {
+      const note = change.after.data();
 
-    // 코멘트 경로 저장
-    note.objectID = change.after.ref.path;
+      // 코멘트 경로 저장
+      note.objectID = change.after.ref.path;
 
-    // 색인
-    const index = client.initIndex(settings.algolia.indexName);
-    return index.saveObject(note);
+      // 색인
+      const index = algoliaClient.initIndex(settings.algolia.indexName);
+      await index.saveObject(note);
+    }
   });

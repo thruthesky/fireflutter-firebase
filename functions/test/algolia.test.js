@@ -3,9 +3,9 @@ const assert = chai.assert;
 
 const test = require("firebase-functions-test")(
   {
-    databaseURL: "https://social-management-system.firebaseio.com",
-    storageBucket: "ocial-management-system.appspot.com",
-    projectId: "social-management-system"
+    databaseURL: "",
+    storageBucket: "",
+    projectId: ""
   },
   "../firebase-service-account-key.json" //
 );
