@@ -21,6 +21,22 @@ service cloud.firestore {
       allow read: if (resource.data.visibility == "public" || ( resource.data.uid == request.auth.uid ));
       allow write: if false;
     }
+
+    // User public information documents
+    match /meta/user/public/{uid} {
+    	allow read: if true;
+      allow write: if request.auth.uid == uid;
+    }
+
+    // User tokens document.
+    // It's open to public.
+    match /meta/user/token/{uid} {
+    	allow read: if true;
+      allow write: if request.auth.uid == uid;
+    }
+    
+
+
     // 사용자
     // Security Rules for Users Colection
     match /users/{uid} {
@@ -46,19 +62,35 @@ service cloud.firestore {
 
       // Push notification tokens.
       // Push tokens are saved unser `/users/{uid}/meta/tokens` document.
-      match /meta/tokens {
-        allow read: if true;
-        allow write: if request.auth.uid == uid;
-      }
+      // match /meta/tokens {
+      //   allow read: if true;
+      //   allow write: if request.auth.uid == uid;
+      // }
 
 
       // Public settings of a user.
       // The document of `/users/{uid}/meta/public` is open for reading.
-      match /meta/public {
-        allow read: if true;
-        allow write: if request.auth.uid == uid;
-      }
+      // match /meta/public {
+      //   allow read: if true;
+      //   allow write: if request.auth.uid == uid;
+      // }
     }
+
+
+    // User public information documents
+    //
+    match /meta/user/public/{uid} {
+    	allow read: if true;
+      allow write: if request.auth.uid == uid;
+    }
+
+    // User tokens document.
+    // It's open to public.
+    match /meta/user/token/{uid} {
+    	allow read: if true;
+      allow write: if request.auth.uid == uid;
+    }
+    
 
     // Category rules
     //
