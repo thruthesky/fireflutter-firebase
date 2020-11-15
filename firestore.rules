@@ -22,19 +22,64 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // User public information documents
-    match /meta/user/public/{uid} {
-    	allow read: if true;
-      allow write: if request.auth.uid == uid;
-    }
 
-    // User tokens document.
-    // It's open to public.
-    match /meta/user/token/{uid} {
-    	allow read: if true;
-      allow write: if request.auth.uid == uid;
+    // Return true if the login user is one of the chat room user.
+    // function chatRoomUser(roomId) {
+    //   return 
+    //   debug(exists(/databases/$(database)/documents/chat/roomInfo/$(roomId)/info))
+    //   && debug(request.auth.uid in get(/databases/$(database)/documents/chat/roomInfo/$(roomId)/info).users)
+    // }
+
+    match /chat {
+      match /users/{uid}/{roomId} {
+        // User can read his own chat room list.
+        allow read: if request.auth.uid == uid;
+        // Only chat room users can update the room info(last message) of (room list of) users who are in the same room.
+        allow create, update: if request.auth.uid == uid
+        || request.auth.uid in get(/databases/$(database)/documents/chat/room/list/$(roomId)).data.users;
+        allow delete: if request.auth.uid == uid;
+      }
+      
+
+
+      match /room/list/{roomId} {
+        // Only room users can read the room information.
+        allow read: if request.auth.uid in resource.data.users;
+        // Anyone can create room.
+        allow create: if true;
+        // Room users can add another user.
+        // A user cannot remove other user but himself.
+        // Moderators can remove a user.
+        allow update: if
+        (
+          request.auth.uid in resource.data.users
+          && onlyUpdating(['users'])
+          &&
+          (
+            request.resource.data.users.hasAll(resource.data.users)
+            ||
+            request.resource.data.users.hasAll(resource.data.users.removeAll([request.auth.uid]))
+          )
+        )
+        ||
+        (
+          request.auth.uid in resource.data.moderators
+        )
+        ;
+      }
+      
+      match /messages/{roomId}/{message} {
+        // Room users can read room messages.
+        allow read: if request.auth.uid in get(/databases/$(database)/documents/chat/room/list/$(roomId)).data.users;
+        // Room users can write his own message.
+        allow write: if request.auth.uid in get(/databases/$(database)/documents/chat/room/list/$(roomId)).data.users && request.resource.data.senderUid == request.auth.uid;
+      }
+
+      // match /rooms/{roomId}/{message} {
+      //   allow read: if chatRoomUser(roomId);
+      //   allow write: if chatRoomUser(roomId);
+      // }
     }
-    
 
 
     // 사용자
@@ -91,6 +136,7 @@ service cloud.firestore {
       allow write: if request.auth.uid == uid;
     }
     
+
 
     // Category rules
     //
@@ -368,9 +414,9 @@ service cloud.firestore {
     // 특정 값만 업데이트하는지 확인
     //
     // 예) onlyUpdating(['like', 'dislike']);
-    // function onlyUpdating(fields) {
-    //   return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
-    // }
+    function onlyUpdating(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
 
 
 

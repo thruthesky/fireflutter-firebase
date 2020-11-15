@@ -39,12 +39,12 @@ function getAdminFirestore() {
 }
 
 // Helper function to make the test code simple.
-module.exports.setup = async (auth, data) => {
+module.exports.setup = async (auth, data, clear=true) => {
   // Clear firestore on every setup.
   //
   // It's important to clear on every test or it might not work as expected.
   // When you call .set(), it may be a `create` action if the document is not exist, or it would be `update`.
-  await firebase.clearFirestoreData({ projectId: MY_PROJECT_ID });
+  if ( clear ) await firebase.clearFirestoreData({ projectId: MY_PROJECT_ID });
   const db = getFirestore(auth); // Firestore instance 를 가져온다
 
   // Get admin db instance
@@ -55,7 +55,7 @@ module.exports.setup = async (auth, data) => {
 
   // Push default data to Firestore
   // If there is data to set, set it with admin instance.
-  if (data) {
+  if (data && Object.keys(data).length > 0) {
     for (const key in data) {
       // key 마다, 데이터를 모두 기록한다.
       // Save data for each path.
