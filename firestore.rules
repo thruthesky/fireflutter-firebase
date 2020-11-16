@@ -36,13 +36,13 @@ service cloud.firestore {
         allow read: if request.auth.uid == uid;
         // Only chat room users can update the room info(last message) of (room list of) users who are in the same room.
         allow create, update: if request.auth.uid == uid
-        || request.auth.uid in get(/databases/$(database)/documents/chat/room/list/$(roomId)).data.users;
+        || request.auth.uid in get(/databases/$(database)/documents/chat/info/room-list/$(roomId)).data.users;
         allow delete: if request.auth.uid == uid;
       }
       
 
 
-      match /room/list/{roomId} {
+      match /info/room-list/{roomId} {
         // Only room users can read the room information.
         allow read: if request.auth.uid in resource.data.users;
         // Anyone can create room.
@@ -70,9 +70,9 @@ service cloud.firestore {
       
       match /messages/{roomId}/{message} {
         // Room users can read room messages.
-        allow read: if request.auth.uid in get(/databases/$(database)/documents/chat/room/list/$(roomId)).data.users;
+        allow read: if request.auth.uid in get(/databases/$(database)/documents/chat/info/room-list/$(roomId)).data.users;
         // Room users can write his own message.
-        allow write: if request.auth.uid in get(/databases/$(database)/documents/chat/room/list/$(roomId)).data.users && request.resource.data.senderUid == request.auth.uid;
+        allow write: if request.auth.uid in get(/databases/$(database)/documents/chat/info/room-list/$(roomId)).data.users && request.resource.data.senderUid == request.auth.uid;
       }
 
       // match /rooms/{roomId}/{message} {
