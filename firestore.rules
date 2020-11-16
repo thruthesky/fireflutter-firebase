@@ -31,7 +31,7 @@ service cloud.firestore {
     // }
 
     match /chat {
-      match /users/{uid}/{roomId} {
+      match /my-room-list/{uid}/{roomId} {
         // User can read his own chat room list.
         allow read: if request.auth.uid == uid;
         // Only chat room users can update the room info(last message) of (room list of) users who are in the same room.
@@ -48,8 +48,8 @@ service cloud.firestore {
         // Anyone can create room.
         allow create: if true;
         // Room users can add another user.
-        // A user cannot remove other user but himself.
-        // Moderators can remove a user.
+        // A user cannot remove other user but himself. and cannot update other fields.
+        // Moderators can remove a user and can update any fields.
         allow update: if
         (
           request.auth.uid in resource.data.users
