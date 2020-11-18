@@ -79,7 +79,7 @@ describe("Chat", () => {
     });
     const roomInfoDoc = roomList(db).doc(roomId);
     await assertSucceeds(
-      roomInfoDoc.update({ users: [myAuth.uid, otherUid, "another-user-uid"] })
+      roomInfoDoc.update({ users: [myAuth.uid, otherUid, "adding-a-user"] })
     );
   });
 
@@ -89,7 +89,69 @@ describe("Chat", () => {
     });
     const roomInfoDoc = roomList(db).doc(roomId);
     await assertSucceeds(
-      roomInfoDoc.update({ users: [myAuth.uid, otherUid, "user-1", "user-2"] })
+      roomInfoDoc.update({
+        users: [myAuth.uid, otherUid, "adding-user-1", "adding-user-2"]
+      })
+    );
+  });
+
+  it("Adding many users and one of them is in block list and must fail", async () => {
+    const db = await setup(myAuth, {
+      [`chat/info/room-list/${roomId}`]: {
+        users: [myAuth.uid, otherUid],
+        blockedUsers: ["blocked-A"]
+      }
+    });
+    const roomInfoDoc = roomList(db).doc(roomId);
+    await assertFails(
+      roomInfoDoc.update({
+        users: [myAuth.uid, otherUid, "user-1", "user-2", "blocked-A"]
+      })
+    );
+  });
+
+  it("Adding many users and two of them are in block list and must fail", async () => {
+    const db = await setup(myAuth, {
+      [`chat/info/room-list/${roomId}`]: {
+        users: [myAuth.uid, otherUid],
+        blockedUsers: ["blocked-A", "blocked-B", "blocked-C", "blocked-D"]
+      }
+    });
+    const roomInfoDoc = roomList(db).doc(roomId);
+    await assertFails(
+      roomInfoDoc.update({
+        users: [
+          myAuth.uid,
+          otherUid,
+          "blocked-B",
+          "blocked-D",
+          "user-1",
+          "user-2"
+        ]
+      })
+    );
+  });
+
+  it("Moderator cannot add users who are in block list", async () => {
+    const db = await setup(myAuth, {
+      [`chat/info/room-list/${roomId}`]: {
+        moderators: [myUid],
+        users: [myAuth.uid, otherUid],
+        blockedUsers: ["blocked-A", "blocked-B", "blocked-C", "blocked-D"]
+      }
+    });
+    const roomInfoDoc = roomList(db).doc(roomId);
+    await assertFails(
+      roomInfoDoc.update({
+        users: [
+          myAuth.uid,
+          otherUid,
+          "blocked-B",
+          "blocked-D",
+          "user-1",
+          "user-2"
+        ]
+      })
     );
   });
 

@@ -47,24 +47,28 @@ service cloud.firestore {
         allow read: if request.auth.uid in resource.data.users;
         // Anyone can create room.
         allow create: if true;
-        // Room users can add another user.
-        // A user cannot remove other user but himself. and cannot update other fields.
+        // Room users can add another users and none of them must not be in `blockedUsers` 
+        // User cannot remove other user but himself. and cannot update other fields.
         // Moderators can remove a user and can update any fields.
         allow update: if
         (
+          (
           request.auth.uid in resource.data.users
           && onlyUpdating(['users'])
-          &&
+          && request.resource.data.users.hasAll(resource.data.users.removeAll([request.auth.uid])) // remove my self or add users.  
+          )
+          ||
+          // Moderators can edit all the fields. This includes
+          // - removing users by updating users: []
+          // - blocking users by updating blockedUsers: []
+          // - adding another user to moderator by updating moderators: []
+          // - and all the work.
           (
-            request.resource.data.users.hasAll(resource.data.users)
-            ||
-            request.resource.data.users.hasAll(resource.data.users.removeAll([request.auth.uid]))
+          'moderators' in resource.data &&  request.auth.uid in resource.data.moderators
           )
         )
-        ||
-        (
-          request.auth.uid in resource.data.moderators
-        )
+        &&
+        !('blockedUsers' in resource.data && request.resource.data.users.hasAny(resource.data.blockedUsers)) // stop adding users who are in block list.
         ;
       }
       
@@ -74,11 +78,6 @@ service cloud.firestore {
         // Room users can write his own message.
         allow write: if request.auth.uid in get(/databases/$(database)/documents/chat/info/room-list/$(roomId)).data.users && request.resource.data.senderUid == request.auth.uid;
       }
-
-      // match /rooms/{roomId}/{message} {
-      //   allow read: if chatRoomUser(roomId);
-      //   allow write: if chatRoomUser(roomId);
-      // }
     }
 
 
