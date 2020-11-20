@@ -4,9 +4,9 @@ const firebase = require("@firebase/rules-unit-testing");
 const MY_PROJECT_ID = "social-management-system";
 
 // Fake User UID - My UID.
-const myUid = "my_uid";
+const myUid = "myUid";
 // Fake User UiD
-const otherUid = "other_uid";
+const otherUid = "otherUid";
 
 // Fake User Auth Data
 const myAuth = { uid: myUid, email: "my-email@gmail.com" };
@@ -39,12 +39,12 @@ function getAdminFirestore() {
 }
 
 // Helper function to make the test code simple.
-module.exports.setup = async (auth, data, clear=true) => {
+module.exports.setup = async (auth, data, clear = true) => {
   // Clear firestore on every setup.
   //
   // It's important to clear on every test or it might not work as expected.
   // When you call .set(), it may be a `create` action if the document is not exist, or it would be `update`.
-  if ( clear ) await firebase.clearFirestoreData({ projectId: MY_PROJECT_ID });
+  if (clear) await firebase.clearFirestoreData({ projectId: MY_PROJECT_ID });
   const db = getFirestore(auth); // Firestore instance 를 가져온다
 
   // Get admin db instance

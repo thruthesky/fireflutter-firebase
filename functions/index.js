@@ -131,17 +131,17 @@ async function doVotes(change) {
     }
   }
 }
-exports.voteOnPost = functions.firestore
-  .document("/posts/{postId}/votes/{uid}")
-  .onWrite(async (change, context) => {
-    await doVotes(change);
-  });
+// exports.voteOnPost = functions.firestore
+//   .document("/posts/{postId}/votes/{uid}")
+//   .onWrite(async (change, context) => {
+//     await doVotes(change);
+//   });
 
-exports.voteOnComment = functions.firestore
-  .document("/posts/{postId}/comments/{commentId}/votes/{uid}")
-  .onWrite(async (change, context) => {
-    await doVotes(change);
-  });
+// exports.voteOnComment = functions.firestore
+//   .document("/posts/{postId}/comments/{commentId}/votes/{uid}")
+//   .onWrite(async (change, context) => {
+//     await doVotes(change);
+//   });
 
 // ///////////////////////////////////////////////////////////////////////////////
 // //

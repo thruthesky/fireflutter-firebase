@@ -110,7 +110,7 @@ describe("Post", () => {
   it("Updating without updatedAt should fail", async () => {
     const db = await setup(myAuth, mockMyPost);
     const postsDoc = db.collection("posts").doc(postId);
-    await assertFails(postsDoc.update({}));
+    await assertFails(postsDoc.update({ title: "update" }));
   });
 
   it("Updating uid property with my uid should success", async () => {
@@ -199,28 +199,13 @@ describe("Post", () => {
     const postsDoc = db.collection("posts").doc("post-id-1");
     await assertSucceeds(postsDoc.delete());
   });
-  it("Cannot update likes and dislikes", async () => {
+  it("Cannot update likes together with other properties.", async () => {
     const db = await setup(myAuth, mockMyPost);
     const postsDoc = db.collection("posts").doc(postId);
     await assertFails(
       postsDoc.update({
         category: "apple",
         likes: 123456789,
-        updatedAt: 20
-      })
-    );
-    await assertFails(
-      postsDoc.update({
-        category: "apple",
-        dislikes: 123456789,
-        updatedAt: 20
-      })
-    );
-    await assertFails(
-      postsDoc.update({
-        category: "apple",
-        likes: 0,
-        dislikes: 0,
         updatedAt: 20
       })
     );
