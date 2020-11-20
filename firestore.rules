@@ -64,7 +64,7 @@ service cloud.firestore {
           // - adding another user to moderator by updating moderators: []
           // - and all the work.
           (
-          'moderators' in resource.data &&  request.auth.uid in resource.data.moderators
+          'moderators' in resource.data && request.auth.uid in resource.data.moderators
           )
         )
         &&
