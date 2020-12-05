@@ -83,6 +83,17 @@ describe("Chat", () => {
 
 
 
+
+    it("Add otherUid to my room where I am alone", async () => {
+        const db = await setup(myAuth, {
+            [`chat/room/list/${roomId}`]: { users: [myAuth.uid] }
+        });
+        const roomInfoDoc = db.collection('chat').doc('room').collection('list').doc(roomId);
+        await assertSucceeds(roomInfoDoc.update({ users: [myAuth.uid, otherUid] }));
+    });
+
+
+
     it("Add a user to my room", async () => {
         const db = await setup(myAuth, {
             [`chat/room/list/${roomId}`]: { users: [myAuth.uid, otherUid] }
