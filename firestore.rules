@@ -31,54 +31,60 @@ service cloud.firestore {
     // }
 
     match /chat {
-      match /users/{uid}/{roomId} {
+      match /my-room-list/{uid}/{roomId} {
         // User can read his own chat room list.
         allow read: if request.auth.uid == uid;
         // Only chat room users can update the room info(last message) of (room list of) users who are in the same room.
         allow create, update: if request.auth.uid == uid
-        || request.auth.uid in get(/databases/$(database)/documents/chat/room/list/$(roomId)).data.users;
+        || request.auth.uid in get(/databases/$(database)/documents/chat/global/room-list/$(roomId)).data.users;
         allow delete: if request.auth.uid == uid;
       }
       
 
 
-      match /room/list/{roomId} {
+      match /global/room-list/{roomId} {
         // Only room users can read the room information.
         allow read: if request.auth.uid in resource.data.users;
         // Anyone can create room.
         allow create: if true;
-        // Room users can add another user.
-        // A user cannot remove other user but himself.
-        // Moderators can remove a user.
+        // Room users can add another users and none of them must not be in `blockedUsers` 
+        // User cannot remove other user but himself. and cannot update other fields.
+        // Moderators can remove a user and can update any fields.
         allow update: if
         (
+          (
           request.auth.uid in resource.data.users
           && onlyUpdating(['users'])
-          &&
+          && request.resource.data.users.hasAll(resource.data.users.removeAll([request.auth.uid])) // remove my self or add users.
+          )
+          ||
+          // Moderators can edit all the fields. This includes
+          // - removing users by updating users: []
+          // - blocking users by updating blockedUsers: []
+          // - adding another user to moderator by updating moderators: []
+          // - and all the work.
           (
-            request.resource.data.users.hasAll(resource.data.users)
-            ||
-            request.resource.data.users.hasAll(resource.data.users.removeAll([request.auth.uid]))
+          'moderators' in resource.data && request.auth.uid in resource.data.moderators
           )
         )
-        ||
+        &&
         (
-          request.auth.uid in resource.data.moderators
+          !('blockedUsers' in resource.data)
+          ||
+          resource.data.blockedUsers == null
+          ||
+          !(request.resource.data.users.hasAny(resource.data.blockedUsers))
         )
+        // ! ('blockedUsers' in resource.data && request.resource.data.users.hasAny(resource.data.blockedUsers)) // stop adding users who are in block list.
         ;
       }
       
       match /messages/{roomId}/{message} {
         // Room users can read room messages.
-        allow read: if request.auth.uid in get(/databases/$(database)/documents/chat/room/list/$(roomId)).data.users;
+        allow read: if request.auth.uid in get(/databases/$(database)/documents/chat/global/room-list/$(roomId)).data.users;
         // Room users can write his own message.
-        allow write: if request.auth.uid in get(/databases/$(database)/documents/chat/room/list/$(roomId)).data.users && request.resource.data.senderUid == request.auth.uid;
+        allow write: if request.auth.uid in get(/databases/$(database)/documents/chat/global/room-list/$(roomId)).data.users && request.resource.data.senderUid == request.auth.uid;
       }
-
-      // match /rooms/{roomId}/{message} {
-      //   allow read: if chatRoomUser(roomId);
-      //   allow write: if chatRoomUser(roomId);
-      // }
     }
 
 
@@ -105,20 +111,6 @@ service cloud.firestore {
       allow delete: if false;
 
 
-      // Push notification tokens.
-      // Push tokens are saved unser `/users/{uid}/meta/tokens` document.
-      // match /meta/tokens {
-      //   allow read: if true;
-      //   allow write: if request.auth.uid == uid;
-      // }
-
-
-      // Public settings of a user.
-      // The document of `/users/{uid}/meta/public` is open for reading.
-      // match /meta/public {
-      //   allow read: if true;
-      //   allow write: if request.auth.uid == uid;
-      // }
     }
 
 
@@ -173,24 +165,9 @@ service cloud.firestore {
         && categoryExist()
         && hasAll(['uid', 'category', 'createdAt', 'updatedAt']);
 
-
-
-      // 수정
-      //
-      // 필수 입력: 없음??
-      
-      // 
-      // 
-      // - 수정은 자기 글만 가능
-      // - uid 변경 불가
-      // - 카테고리가 존재해야 함
-      //
-      // - 다른 사람이 내 글을 수정하는 경우, 오직 'like' 와 'dislke' 만 수정 가능하다. 
-      // - 자신 뿐만아니라 타인이 vote 할 수 있다.
-
       // Update a post
       //
-      // Condition 1. A user can update his post.
+      // Condition 1. User can update his post not other's post.
       // Input params of [Condition 1]
       // category: **required**. The category must be exit and may be changed.
       // uid: **optinonal** The user uid. This value must be same with the value that is already saved in the document. Meaning it cannot be changed.
@@ -198,12 +175,35 @@ service cloud.firestore {
       // All other fields are optinal.
 
       allow update: if
-        myDocument()
+        (
+          myDocument()
           && notUpdating('uid')
           && notUpdating('likes')
-          && notUpdating('dislikes')
           && req('updatedAt') > res('updatedAt')
           && categoryExist()
+        )
+        ||
+        (
+          // only updating 'likes'
+          debug(onlyUpdating(['likes']))
+          &&
+          (
+            (
+              (
+              // if 'likes' not exist, then, succeeds.
+              !('likes' in resource.data)
+              ||
+              // if 'likes' exists but empty, then succeeds,
+              resource.data.likes.size() == 0
+              )
+              &&
+              [request.auth.uid].toSet() == request.resource.data.likes.diff({}).affectedKeys()
+            )
+            ||
+            // if updates only my uid. add my uid or remove my uid.
+            [request.auth.uid].toSet() == request.resource.data.likes.diff(resource.data.likes).affectedKeys()
+          )
+        )
       ;
 
       // 삭제는 자기 글만 가능
@@ -214,39 +214,40 @@ service cloud.firestore {
 
       // Vote on post
       // @see README.md
-      match /votes/{uid} {
-        allow read: if true;
-        allow write: if
-          request.auth.uid == uid
-          // && debug(req('choice'))
-          // && debug(res('choice'))
-          // && debug( request.auth.uid )
-          // && debug(uid)
-          // && debug(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
-          // If user voted for the first time, then choice can be 'like' or 'dislike'.
-          // If user voted again, then choice can be one of empty string(''), 'like', 'dislike'.
-          && 
-          (
-            // first time vote,
-            (
-              !exists(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
-              &&
-              (req('choice') == 'like' || req('choice') == 'dislike')
-            )
-            // If vote has done before, then choice must be difference.
-            ||
-            (
-              exists(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
-              &&
-              ((req('choice')) != (res('choice')))
-              &&
-              (
-                req('choice') == 'like' || req('choice') == 'dislike' || req('choice') == ''
-              )
-            )
-          )
-        ;
-      }
+      // change. 2020. 11. 20. functions are removed. so, this code is not working anymore.
+      // match /votes/{uid} {
+      //   allow read: if true;
+      //   allow write: if
+      //     request.auth.uid == uid
+      //     // && debug(req('choice'))
+      //     // && debug(res('choice'))
+      //     // && debug( request.auth.uid )
+      //     // && debug(uid)
+      //     // && debug(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
+      //     // If user voted for the first time, then choice can be 'like' or 'dislike'.
+      //     // If user voted again, then choice can be one of empty string(''), 'like', 'dislike'.
+      //     && 
+      //     (
+      //       // first time vote,
+      //       (
+      //         !exists(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
+      //         &&
+      //         (req('choice') == 'like' || req('choice') == 'dislike')
+      //       )
+      //       // If vote has done before, then choice must be difference.
+      //       ||
+      //       (
+      //         exists(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
+      //         &&
+      //         ((req('choice')) != (res('choice')))
+      //         &&
+      //         (
+      //           req('choice') == 'like' || req('choice') == 'dislike' || req('choice') == ''
+      //         )
+      //       )
+      //     )
+      //   ;
+      // }
 
 
       // 코멘트
@@ -283,8 +284,30 @@ service cloud.firestore {
             && notUpdating('uid')
             && notUpdating('order')
             && notUpdating('likes')
-            && notUpdating('dislikes')
           )
+          
+        ||
+        (
+          // only updating 'likes'
+          debug(onlyUpdating(['likes']))
+          &&
+          (
+            (
+              (
+              // if 'likes' not exist, then, succeeds.
+              !('likes' in resource.data)
+              ||
+              // if 'likes' exists but empty, then succeeds,
+              resource.data.likes.size() == 0
+              )
+              &&
+              [request.auth.uid].toSet() == request.resource.data.likes.diff({}).affectedKeys()
+            )
+            ||
+            // if updates only my uid. add my uid or remove my uid.
+            [request.auth.uid].toSet() == request.resource.data.likes.diff(resource.data.likes).affectedKeys()
+          )
+        )
           ;
 
         // 코멘트 삭제 권한
@@ -294,54 +317,44 @@ service cloud.firestore {
 
         // Vote on comment
         // @see README.md
-        match /votes/{uid} {
-          allow read: if true;
-          allow write: if
-            request.auth.uid == uid
-            // && debug(req('choice'))
-            // && debug(res('choice'))
-            // && debug( request.auth.uid )
-            // && debug(uid)
-            // && debug(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
-            // If user voted for the first time, then choice can be 'like' or 'dislike'.
-            // If user voted again, then choice can be one of empty string(''), 'like', 'dislike'.
-            && 
-            (
-              // first time vote,
-              (
-                !exists(/databases/$(database)/documents/posts/$(postId)/comments/$(commentId)/votes/$(uid))
-                &&
-                (req('choice') == 'like' || req('choice') == 'dislike')
-              )
-              // If vote has done before, then choice must be difference.
-              ||
-              (
-                exists(/databases/$(database)/documents/posts/$(postId)/comments/$(commentId)/votes/$(uid))
-                &&
-                ((req('choice')) != (res('choice')))
-                &&
-                (
-                  req('choice') == 'like' || req('choice') == 'dislike' || req('choice') == ''
-                )
-              )
-            )
-          ;
-        }
+        // change. 2020. 11. 20. Functions are removed and this code is no longer valid.
+        // match /votes/{uid} {
+        //   allow read: if true;
+        //   allow write: if
+        //     request.auth.uid == uid
+        //     // && debug(req('choice'))
+        //     // && debug(res('choice'))
+        //     // && debug( request.auth.uid )
+        //     // && debug(uid)
+        //     // && debug(/databases/$(database)/documents/posts/$(postId)/votes/$(uid))
+        //     // If user voted for the first time, then choice can be 'like' or 'dislike'.
+        //     // If user voted again, then choice can be one of empty string(''), 'like', 'dislike'.
+        //     && 
+        //     (
+        //       // first time vote,
+        //       (
+        //         !exists(/databases/$(database)/documents/posts/$(postId)/comments/$(commentId)/votes/$(uid))
+        //         &&
+        //         (req('choice') == 'like' || req('choice') == 'dislike')
+        //       )
+        //       // If vote has done before, then choice must be difference.
+        //       ||
+        //       (
+        //         exists(/databases/$(database)/documents/posts/$(postId)/comments/$(commentId)/votes/$(uid))
+        //         &&
+        //         ((req('choice')) != (res('choice')))
+        //         &&
+        //         (
+        //           req('choice') == 'like' || req('choice') == 'dislike' || req('choice') == ''
+        //         )
+        //       )
+        //     )
+        //   ;
+        // }
       } // comments
     }
 
 
-
-    // // 추천/비추천
-    // match /likes/{like} {
-    //   // 읽기는 로그인만 하면 된다.
-    //   // 타인의 likes 정보를 읽을 수 있다. 별 중요한 정보가 아니다.
-    //   // 굳이, 존재하지 않으면, 통과 && Documennt 가 존재하면 내 글인지 확인 할 필요가 없다.
-    //   allow read: if login();
-    //   allow create: if login() && toBeMyDocument() && request.resource.data.keys().hasOnly(['uid', 'id', 'vote']);
-    //   allow update: if login() && myDocument() && notUpdating('uid') && request.resource.data.keys().hasOnly(['uid', 'id', 'vote']);
-    //   allow delete: if login() && myDocument();
-    // }
     
 
     // 설정. 모든 사람이 읽을 수 있지만, 관리자만 쓰기 가능.

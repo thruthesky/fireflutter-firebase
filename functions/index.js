@@ -8,16 +8,16 @@ if (!admin.apps.length) {
 const firestore = admin.firestore();
 exports.firestore = firestore;
 
-const algoliasearch = require("algoliasearch");
+// const algoliasearch = require("algoliasearch");
 
-const settings = require("./settings");
-let algoliaClient;
-if (settings.algolia && settings.algolia.appId) {
-  algoliaClient = algoliasearch(
-    settings.algolia.appId,
-    settings.algolia.adminKey
-  );
-}
+// const settings = require("./settings");
+// let algoliaClient;
+// if (settings.algolia && settings.algolia.appId) {
+//   algoliaClient = algoliasearch(
+//     settings.algolia.appId,
+//     settings.algolia.adminKey
+//   );
+// }
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -131,49 +131,49 @@ async function doVotes(change) {
     }
   }
 }
-exports.voteOnPost = functions.firestore
-  .document("/posts/{postId}/votes/{uid}")
-  .onWrite(async (change, context) => {
-    await doVotes(change);
-  });
+// exports.voteOnPost = functions.firestore
+//   .document("/posts/{postId}/votes/{uid}")
+//   .onWrite(async (change, context) => {
+//     await doVotes(change);
+//   });
 
-exports.voteOnComment = functions.firestore
-  .document("/posts/{postId}/comments/{commentId}/votes/{uid}")
-  .onWrite(async (change, context) => {
-    await doVotes(change);
-  });
+// exports.voteOnComment = functions.firestore
+//   .document("/posts/{postId}/comments/{commentId}/votes/{uid}")
+//   .onWrite(async (change, context) => {
+//     await doVotes(change);
+//   });
 
-///////////////////////////////////////////////////////////////////////////////
-//
-//
-// 글 생성, 업데이트시 색인.
-exports.onPostWrite = functions.firestore
-  .document("/posts/{postId}")
-  .onWrite(async (change, context) => {
-    if (settings.algolia.indexName) {
-      const note = change.after.data();
+// ///////////////////////////////////////////////////////////////////////////////
+// //
+// //
+// // 글 생성, 업데이트시 색인.
+// exports.onPostWrite = functions.firestore
+//   .document("/posts/{postId}")
+//   .onWrite(async (change, context) => {
+//     if (settings.algolia.indexName) {
+//       const note = change.after.data();
 
-      // 글 경로 저장
-      note.objectID = change.after.ref.path;
+//       // 글 경로 저장
+//       note.objectID = change.after.ref.path;
 
-      // 색인
-      const index = algoliaClient.initIndex(settings.algolia.indexName);
-      await index.saveObject(note);
-    }
-  });
+//       // 색인
+//       const index = algoliaClient.initIndex(settings.algolia.indexName);
+//       await index.saveObject(note);
+//     }
+//   });
 
-// 코멘트 생성, 업데이트시 식앤
-exports.onCommentWrite = functions.firestore
-  .document("/posts/{postId}/comments/{commentId}")
-  .onWrite(async (change, context) => {
-    if (settings.algolia.indexName) {
-      const note = change.after.data();
+// // 코멘트 생성, 업데이트시 식앤
+// exports.onCommentWrite = functions.firestore
+//   .document("/posts/{postId}/comments/{commentId}")
+//   .onWrite(async (change, context) => {
+//     if (settings.algolia.indexName) {
+//       const note = change.after.data();
 
-      // 코멘트 경로 저장
-      note.objectID = change.after.ref.path;
+//       // 코멘트 경로 저장
+//       note.objectID = change.after.ref.path;
 
-      // 색인
-      const index = algoliaClient.initIndex(settings.algolia.indexName);
-      await index.saveObject(note);
-    }
-  });
+//       // 색인
+//       const index = algoliaClient.initIndex(settings.algolia.indexName);
+//       await index.saveObject(note);
+//     }
+//   });
