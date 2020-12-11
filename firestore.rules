@@ -23,6 +23,13 @@ service cloud.firestore {
     }
 
 
+    match /purchase/{purchaseDocId} {
+      allow read: if resource.data.uid == request.auth.uid; 
+      allow write: if request.resource.data.uid == request.auth.uid;
+    }
+    
+    
+
     // Return true if the login user is one of the chat room user.
     // function chatRoomUser(roomId) {
     //   return 

@@ -9,7 +9,8 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "test": "mocha --timeout 10000 --watch test/index.test.js",
-    "test:algolia": "mocha --timeout 10000 --watch test/algolia.test.js"
+    "test:algolia": "mocha --timeout 10000 --watch test/algolia.test.js",
+    "test:in-app-purchase": "mocha --timeout 10000 --watch test/in-app-purchase.test.js"
   },
   "engines": {
     "node": "12"
