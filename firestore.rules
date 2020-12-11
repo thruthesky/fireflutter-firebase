@@ -22,9 +22,8 @@ service cloud.firestore {
       allow write: if false;
     }
 
-
     match /purchase/{purchaseDocId} {
-      allow read: if resource.data.uid == request.auth.uid; 
+      allow read: if resource.data.uid == request.auth.uid || admin();
       allow write: if request.resource.data.uid == request.auth.uid;
     }
     
