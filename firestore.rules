@@ -181,6 +181,8 @@ service cloud.firestore {
       // All other fields are optinal.
 
       allow update: if
+        admin()
+        ||
         (
           myDocument()
           && notUpdating('uid')
@@ -215,7 +217,7 @@ service cloud.firestore {
       // 삭제는 자기 글만 가능
       //
       // 필수 입력: 없음.
-      allow delete: if myDocument();
+      allow delete: if myDocument() || admin();
 
 
       // Vote on post
