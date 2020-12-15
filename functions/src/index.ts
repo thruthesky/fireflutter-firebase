@@ -13,11 +13,30 @@ import { User } from "./user";
 
 const user = new User();
 
-exports.registerBonusCredit = functions
+exports.userCreate = functions
+  .region(functionsRegion)
+  .https.onCall(async (data, context) => {
+    try {
+      return await user.create(data, context as any);
+    } catch (error) {
+      throw new functions.https.HttpsError("unimplemented", error, data);
+    }
+  });
+exports.userDelete = functions
   .region(functionsRegion)
   .https.onCall(async (data, context) => {
     try {
       return await user.delete(data, context as any);
+    } catch (error) {
+      throw new functions.https.HttpsError("unimplemented", error, data);
+    }
+  });
+
+exports.userSetAdmin = functions
+  .region(functionsRegion)
+  .https.onCall(async (data, context) => {
+    try {
+      return await user.setAdmin(data, context as any);
     } catch (error) {
       throw new functions.https.HttpsError("unimplemented", error, data);
     }
