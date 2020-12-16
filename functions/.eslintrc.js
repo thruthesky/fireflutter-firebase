@@ -2,22 +2,19 @@ module.exports = {
   env: {
     browser: true,
     es6: true,
-    node: true,
+    node: true
   },
   extends: [
     "plugin:import/errors",
     "plugin:import/warnings",
-    "plugin:import/typescript",
+    "plugin:import/typescript"
   ],
   parser: "@typescript-eslint/parser",
   parserOptions: {
     project: "tsconfig.json",
-    sourceType: "module",
+    sourceType: "module"
   },
-  plugins: [
-    "@typescript-eslint",
-    "import",
-  ],
+  plugins: ["@typescript-eslint", "import"],
   rules: {
     "@typescript-eslint/adjacent-overload-signatures": "error",
     "@typescript-eslint/no-empty-function": "error",
@@ -28,7 +25,7 @@ module.exports = {
     "@typescript-eslint/prefer-for-of": "warn",
     "@typescript-eslint/triple-slash-reference": "error",
     "@typescript-eslint/unified-signatures": "warn",
-    "comma-dangle": ["error", "always-multiline"],
+    // "comma-dangle": ["error", "always-multiline"],
     "constructor-super": "error",
     eqeqeq: ["warn", "always"],
     "import/no-deprecated": "warn",
@@ -40,8 +37,8 @@ module.exports = {
     "no-empty": [
       "error",
       {
-        allowEmptyCatch: true,
-      },
+        allowEmptyCatch: true
+      }
     ],
     "no-invalid-this": "error",
     "no-new-wrappers": "error",
@@ -51,21 +48,21 @@ module.exports = {
     "no-shadow": [
       "error",
       {
-        hoist: "all",
-      },
+        hoist: "all"
+      }
     ],
     "no-throw-literal": "error",
     "no-unsafe-finally": "error",
     "no-unused-labels": "error",
     "no-var": "warn",
     "no-void": "error",
-    "prefer-const": "warn",
+    "prefer-const": "warn"
   },
   settings: {
     jsdoc: {
       tagNamePreference: {
-        returns: "return",
-      },
-    },
-  },
+        returns: "return"
+      }
+    }
+  }
 };

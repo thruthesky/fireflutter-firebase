@@ -72,8 +72,9 @@ const users: UsersData = {
 
 import { User } from "../src/user";
 import {
-  EMPTY_UID,
+  // EMPTY_UID,
   USER_PUBLIC_DATA_NOT_EXISTS,
+  ADMIN_PUBLIC_DATA_NOT_EXISTS,
   YOU_ARE_NOT_ADMIN
 } from "../src/definitions";
 const user = new User();
@@ -113,59 +114,68 @@ describe("Firebase test", () => {
     assert(u.displayName, users.a.displayName);
     /// 처음에 관리자 게정 생성 할 때, 관리자 권한이 없으므로, User.setAdmin() 을 사용하지 못한다.
     await user.publicDoc(adminAccount.uid).set({ isAdmin: true });
-    const pub = await user.getPublicData(adminAccount.uid);
+    const pub = await user.publicDataGet(adminAccount.uid);
     assert(pub.isAdmin == true, "isAdmin == true");
   });
   it("Set as admin", async () => {
     await user.setAdmin(adminAccount.uid, adminContext());
   });
-  it("Get admin public data", async () => {
-    const userGot = await user.getPublicData(adminAccount.uid);
-    assert(userGot.isAdmin, "the user is admin");
-  });
-  it("Error test", async () => {
-    try {
-      await user.setAdmin("", adminContext());
-      assert(false, "must failed on setAdmin.");
-    } catch (e) {
-      assert(e === EMPTY_UID);
-    }
-    try {
-      await user.getPublicData("");
-      assert(false, "must failed on getPublicData");
-    } catch (e) {
-      assert(e === EMPTY_UID);
-    }
-  });
+  // it("Get admin public data", async () => {
+  //   const userGot = await user.publicDataGet(adminAccount.uid);
+  //   assert(userGot.isAdmin, "the user is admin");
+  // });
+  // it("Error test", async () => {
+  //   try {
+  //     await user.setAdmin("", adminContext());
+  //     assert(false, "must failed on setAdmin.");
+  //   } catch (e) {
+  //     assert(e === EMPTY_UID);
+  //   }
+  //   try {
+  //     await user.publicDataGet("");
+  //     assert(false, "must failed on publicDataGet");
+  //   } catch (e) {
+  //     assert(e === EMPTY_UID);
+  //   }
+  // });
 
-  it("Creating user A with wrong uid", async () => {
-    try {
-      await user.create(users.a, { auth: { uid: "wrong-uid" } });
-    } catch (e) {
-      assert(e == USER_PUBLIC_DATA_NOT_EXISTS, "USER_PUBLIC_DATA_NOT_EXISTS");
-    }
-  });
+  // it("Creating user A with wrong uid", async () => {
+  //   try {
+  //     await user.create(users.a, { auth: { uid: "wrong-uid" } });
+  //   } catch (e) {
+  //     assert(e == USER_PUBLIC_DATA_NOT_EXISTS, "USER_PUBLIC_DATA_NOT_EXISTS");
+  //   }
+  // });
 
   it("Creating user B by user A. Admin permission error expected.", async () => {
-    let a: any;
+    let a = await user.create(users.a, adminContext());
     try {
-      a = await user.create(users.a, adminContext());
-      await user.create(users.a, { auth: { uid: a.uid } });
+      await user.create(users.b, { auth: { uid: a.uid } });
+    } catch (e) {
+      assert(e == ADMIN_PUBLIC_DATA_NOT_EXISTS);
+    }
+    await user.publicDataCreate(a.uid, adminContext());
+    try {
+      await user.create(users.b, { auth: { uid: a.uid } });
     } catch (e) {
       assert(e == YOU_ARE_NOT_ADMIN);
     }
-
     await user.delete(a.uid, adminContext());
   });
 
   it("Create user A and delete", async () => {
     const a = await user.create(users.a, adminContext());
     assert(a.displayName, users.a.displayName);
-    const aPub = await user.getPublicData(a.uid);
+
+    await user.publicDataCreate(a.uid, adminContext());
+    const aPub = await user.publicDataGet(a.uid);
     assert(aPub.id == a.uid);
+
     await user.delete(a.uid, adminContext());
+    await user.publicDataDelete(a.uid, adminContext());
+
     try {
-      await user.getPublicData(a.uid);
+      await user.publicDataGet(a.uid);
     } catch (e) {
       assert(
         e == USER_PUBLIC_DATA_NOT_EXISTS,
@@ -179,20 +189,25 @@ describe("Firebase test", () => {
     const b = await user.create(users.b, adminContext());
     const c = await user.create(users.c, adminContext());
 
+    await user.publicDataCreate(a.uid, adminContext());
+    await user.publicDataCreate(b.uid, adminContext());
+    await user.publicDataCreate(c.uid, adminContext());
+
     await user.delete([a.uid, b.uid, c.uid], adminContext());
+    await user.publicDataDelete([a.uid, b.uid, c.uid], adminContext());
 
     try {
-      await user.getPublicData(a.uid);
+      await user.publicDataGet(a.uid);
     } catch (e) {
       assert(e == USER_PUBLIC_DATA_NOT_EXISTS, "a deleted");
     }
     try {
-      await user.getPublicData(b.uid);
+      await user.publicDataGet(b.uid);
     } catch (e) {
       assert(e == USER_PUBLIC_DATA_NOT_EXISTS, "b deleted");
     }
     try {
-      await user.getPublicData(c.uid);
+      await user.publicDataGet(c.uid);
     } catch (e) {
       assert(e == USER_PUBLIC_DATA_NOT_EXISTS, "c deleted");
     }
