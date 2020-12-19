@@ -22,11 +22,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    match /purchase/{purchaseDocId} {
+
+    match /purchase/{document=**} {
       allow read: if resource.data.uid == request.auth.uid || admin();
-      allow write: if request.resource.data.uid == request.auth.uid;
+      allow create: if request.resource.data.uid == request.auth.uid;
     }
-    
     
 
     // Return true if the login user is one of the chat room user.
@@ -101,9 +101,9 @@ service cloud.firestore {
       // Create when user logged in and it's my document.
       allow create: if login() && request.auth.uid == uid;
 
-      // 자신의 도큐먼트이면 읽기 가능.
+      // 자신의 도큐먼트이면 읽기 가능. 관리자도 읽기 가능.
       // Read if it's my document
-      allow read: if request.auth.uid == uid;
+      allow read: if request.auth.uid == uid || admin();
 
       // `isAdmin` 속성은 빼고 수정 가능.
       // 관리자인 경우에도, request data 로 직접 isAmdin 속성을 수정 할 수 없다.
