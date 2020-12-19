@@ -2,20 +2,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-
-    // 기본적으로 모든 읽기와 쓰기를 막는다.
-    // By default, all permissions should be locked.
+    // By default, all permissions are locked.
     match /{document=**} {
       allow read: if false;
       allow write: if false;
     }
-    // 테스트를 위한 도큐먼트. 실제는 사용되지 않음.
+    // Test purpose
     // `readonlytest` is only for security rule unit testing.
     match /readonlytest/{docId} {
       allow read: if true;
       allow write: if (request.auth.uid == docId);
     }
-    // 테스트를 위한 도큐먼트. 실제로는 사용되지 않음.
+    // Test purpose
     // `publictest` is only for security rule unit testing.
     match /publictest/{docId} {
       allow read: if (resource.data.visibility == "public" || ( resource.data.uid == request.auth.uid ));
@@ -23,19 +21,15 @@ service cloud.firestore {
     }
 
 
+    // Purchase history
+    // Verification and delivery of purchase should be done in backend.
     match /purchase/{document=**} {
       allow read: if resource.data.uid == request.auth.uid || admin();
       allow create: if request.resource.data.uid == request.auth.uid;
     }
     
 
-    // Return true if the login user is one of the chat room user.
-    // function chatRoomUser(roomId) {
-    //   return 
-    //   debug(exists(/databases/$(database)/documents/chat/roomInfo/$(roomId)/info))
-    //   && debug(request.auth.uid in get(/databases/$(database)/documents/chat/roomInfo/$(roomId)/info).users)
-    // }
-
+    /// Chat
     match /chat {
       match /my-room-list/{uid}/{roomId} {
         // User can read his own chat room list.
@@ -94,29 +88,23 @@ service cloud.firestore {
     }
 
 
-    // 사용자
+    // Users
     // Security Rules for Users Colection
     match /users/{uid} {
-      // 로그인을 했으면, 도큐먼트 생성 가능
-      // Create when user logged in and it's my document.
+      // If user logged in, he can create his own document.
       allow create: if login() && request.auth.uid == uid;
 
-      // 자신의 도큐먼트이면 읽기 가능. 관리자도 읽기 가능.
-      // Read if it's my document
+      // Read if it's login user's document.
+      // Admin can read, too.
       allow read: if request.auth.uid == uid || admin();
 
-      // `isAdmin` 속성은 빼고 수정 가능.
-      // 관리자인 경우에도, request data 로 직접 isAmdin 속성을 수정 할 수 없다.
-      // `isAdmin` 은 관리자 권한을 가지는 것으로 사용자가 직접 변경해서는 안된다.
-      // Update if it's my document.
-      // Nobody can update `isAdmin` property. When it is set to true, then the user becomes admin.
+      // Update login user's document.
+      // Admin cannot update.
+      // No body can update `isAdmin` which tells who's admin.
       allow update: if request.auth.uid == uid && notUpdating('isAdmin');
 
-      // 삭제는 불가능
-      // No delete.
+      // Nobody can delete.
       allow delete: if false;
-
-
     }
 
 
@@ -151,9 +139,10 @@ service cloud.firestore {
 
 
 
-    // 글
+    // Posts
     match /posts/{postId} {
-      // 아무나 글을 읽거나 목록 할 수 있음.
+      // Anybody can read and list.
+      // TODO: [group](https://github.com/thruthesky/fireflutter/issues/26)
       allow read: if true;
 
 
@@ -214,9 +203,10 @@ service cloud.firestore {
         )
       ;
 
-      // 삭제는 자기 글만 가능
+      // Delete
       //
-      // 필수 입력: 없음.
+      // User can delete his post.
+      // Admin can delete, too.
       allow delete: if myDocument() || admin();
 
 
@@ -258,8 +248,8 @@ service cloud.firestore {
       // }
 
 
-      // 코멘트
-      // - 각 글 도큐먼트 하위에 기록
+      // Comment.
+      // Comments are saved under post document.
       match /comments/{commentId} {
         allow read: if true;
 
